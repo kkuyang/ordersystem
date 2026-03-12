@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>도미노피자 재고·발주 자동화</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <style>
+    :root {
+      --domino-red: #E31837;
+      --domino-red-dark: #b8122c;
+      --domino-blue: #006491;
+      --bg-light: #f8f9fa;
+      --text: #1a1a1a;
+      --text-muted: #6c757d;
+      --success: #198754;
+      --danger: #dc3545;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+      min-height: 100vh;
+      color: var(--text);
+    }
+
+    .header {
+      background: linear-gradient(90deg, var(--domino-red) 0%, var(--domino-red-dark) 100%);
+      color: white;
+      padding: 1.25rem 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .header h1 { font-size: 1.5rem; font-weight: 700; }
+    .header p { font-size: 0.9rem; opacity: 0.95; margin-top: 0.25rem; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--domino-blue);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .btn-primary { background: var(--domino-red); color: white; }
+    .btn-primary:hover { background: var(--domino-red-dark); transform: translateY(-1px); }
+
+    .btn-secondary { background: var(--domino-blue); color: white; }
+    .btn-secondary:hover { background: #005070; }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--domino-red);
+      color: var(--domino-red);
+    }
+    .btn-outline:hover { background: var(--domino-red); color: white; }
+
+    .inv-table { width: 100%; border-collapse: collapse; }
+    .inv-table th, .inv-table td {
+      padding: 0.5rem 0.4rem;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      font-size: 0.9rem;
+    }
+    .inv-table th {
+      background: var(--bg-light);
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .inv-table input {
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .inv-table input:focus { outline: none; border-color: var(--domino-blue); }
+    .inv-table .col-num { width: 70px; text-align: center; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .summary-item {
+      background: var(--bg-light);
+      padding: 1rem;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .summary-item .value { font-size: 1.4rem; font-weight: 700; color: var(--domino-red); }
+    .summary-item .label { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .summary-item.status-warning .value { color: var(--danger); }
+    .summary-item.status-ok .value { color: var(--success); }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge-danger { background: #ffe5e5; color: var(--danger); }
+    .badge-success { background: #d4edda; color: var(--success); }
+
+    .order-card {
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .order-card h4 { font-size: 1rem; margin-bottom: 0.5rem; }
+    .order-card .meta { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+    .order-card .items { font-size: 0.9rem; margin-bottom: 0.75rem; }
+    .order-card .items li { margin: 0.25rem 0; }
+    .order-card .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .modal.active { display: flex; }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 1.5rem;
+    }
+
+    .modal-content h3 { margin-bottom: 1rem; }
+    .modal-content .preview {
+      background: var(--bg-light);
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      margin: 1rem 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-weight: 500; margin-bottom: 0.35rem; }
+    .form-group input {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+
+    .help-text { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+    .help-text code { background: #eee; padding: 0.1rem 0.3rem; border-radius: 4px; }
+
+    @media (max-width: 768px) {
+      .container { padding: 1rem; }
+      .inv-table { font-size: 0.8rem; }
+      .inv-table th, .inv-table td { padding: 0.35rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>도미노피자 재고·발주 자동화</h1>
+    <p>재고 입력 → 분석 → 발주 이메일 발송 (발주 메일에서 EmailJS 설정 후 이메일 발송 가능)</p>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <div class="card-title">재고 입력</div>
+      <p class="help-text" style="margin-bottom: 1rem;">아래 표의 모든 항목을 입력·수정한 뒤 <strong>분석하기</strong> 버튼을 누르세요. 기본값은 엑셀 파일 기준입니다.</p>
+      <div style="overflow-x: auto;">
+        <table class="inv-table" id="invTable">
+          <thead>
+            <tr>
+              <th>품목코드</th>
+              <th>재료명</th>
+              <th>규격</th>
+              <th>단위</th>
+              <th>현재재고</th>
+              <th>안전재고</th>
+              <th>MOQ</th>
+              <th>거래처</th>
+              <th>거래처이메일</th>
+            </tr>
+          </thead>
+          <tbody id="invBody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top: 1rem;">
+        <button class="btn btn-primary" id="btnAnalyze">📊 분석하기</button>
+      </div>
+    </div>
+
+    <div id="summarySection" class="card" style="display:none;">
+      <div class="card-title">오늘 재고 요약</div>
+      <div class="summary-grid" id="summaryGrid"></div>
+    </div>
+
+    <div id="resultSection" class="card" style="display:none;">
+      <div class="card-title">재고 현황 결과</div>
+      <div style="overflow-x: auto;">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>품목코드</th>
+              <th>재료명</th>
+              <th>현재재고</th>
+              <th>안전재고</th>
+              <th>부족수량</th>
+              <th>발주권장</th>
+              <th>상태</th>
+              <th>거래처</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="ordersSection" class="card" style="display:none;">
+      <div class="card-title">거래처별 발주 필요 현황</div>
+      <div id="ordersList"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="emailModal">
+    <div class="modal-content">
+      <h3>발주 이메일</h3>
+      <div class="form-group">
+        <label>점포명</label>
+        <input type="text" id="storeName" value="점포" placeholder="점포명 입력">
+      </div>
+      <div class="form-group">
+        <label>제목</label>
+        <input type="text" id="emailSubject" readonly>
+      </div>
+      <div class="form-group">
+        <label>본문</label>
+        <div class="preview" id="emailBody"></div>
+      </div>
+      <div class="form-group">
+        <label>수신 이메일</label>
+        <input type="email" id="emailTo" placeholder="거래처 이메일">
+      </div>
+      <details style="margin-bottom: 1rem;">
+        <summary style="cursor:pointer; font-weight:500; color:var(--domino-blue);">📧 EmailJS 설정 (Python 없이 HTML만으로 발송 시)</summary>
+        <div class="form-group" style="margin-top:0.5rem;">
+          <label>Public Key</label>
+          <input type="text" id="emailjsPublicKey" placeholder="emailjs.com 가입 후 Account에서 복사" value="">
+        </div>
+        <div class="form-group">
+          <label>Service ID</label>
+          <input type="text" id="emailjsServiceId" placeholder="Email Services 연결 후" value="">
+        </div>
+        <div class="form-group">
+          <label>Template ID</label>
+          <input type="text" id="emailjsTemplateId" placeholder="템플릿 변수: to_email, subject, message" value="">
+        </div>
+        <button class="btn btn-secondary" id="btnSaveEmailJS" style="margin-bottom:0.5rem;">설정 저장</button>
+        <p class="help-text">
+          Gmail 앱 비밀번호(.env)가 있으면 <code>python app.py</code> 실행 후 localhost:5000에서 사용하세요.<br>
+          Python 없이 사용 시: <a href="https://www.emailjs.com" target="_blank">emailjs.com</a> 가입 → 템플릿 변수 to_email, subject, message
+        </p>
+      </details>
+      <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+        <button class="btn btn-primary" id="btnSendEmail">✉️ 이메일 보내기</button>
+        <button class="btn btn-outline" id="btnCloseModal">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // EmailJS 설정 (localStorage에 저장, UI에서 입력 가능)
+    let EMAILJS = JSON.parse(localStorage.getItem('domino_emailjs') || '{"publicKey":"","serviceId":"","templateId":""}');
+    function saveEmailJSConfig() {
+      localStorage.setItem('domino_emailjs', JSON.stringify(EMAILJS));
+    }
+
+    // domino_inventory_training.xlsx 기준 데이터 (엑셀 파일 내용)
+    const DEFAULT_INVENTORY = [
+      { 품목코드: "ING001", 재료명: "도우볼", 규격: "220g", 단위: "개", 현재재고: 120, 안전재고: 180, MOQ: 100, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING002", 재료명: "토마토소스", 규격: "3kg", 단위: "팩", 현재재고: 32, 안전재고: 20, MOQ: 10, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING003", 재료명: "모짜렐라치즈", 규격: "2kg", 단위: "봉", 현재재고: 12, 안전재고: 18, MOQ: 10, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING004", 재료명: "페퍼로니", 규격: "1kg", 단위: "봉", 현재재고: 15, 안전재고: 12, MOQ: 8, 거래처: "프레시미트코리아", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING005", 재료명: "베이컨", 규격: "1kg", 단위: "팩", 현재재고: 6, 안전재고: 10, MOQ: 10, 거래처: "프레시미트코리아", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING006", 재료명: "양파", 규격: "2.5kg", 단위: "봉", 현재재고: 14, 안전재고: 12, MOQ: 6, 거래처: "그린베지유통", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING007", 재료명: "피망", 규격: "2.5kg", 단위: "봉", 현재재고: 5, 안전재고: 8, MOQ: 5, 거래처: "그린베지유통", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING008", 재료명: "양송이버섯", 규격: "2.5kg", 단위: "캔", 현재재고: 3, 안전재고: 6, MOQ: 6, 거래처: "그린베지유통", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING009", 재료명: "블랙올리브", 규격: "3kg", 단위: "캔", 현재재고: 9, 안전재고: 8, MOQ: 4, 거래처: "토핑솔루션", 거래처이메일: "kutest6240@gmail.com" },
+      { 품목코드: "ING010", 재료명: "스위트콘", 규격: "3kg", 단위: "캔", 현재재고: 4, 안전재고: 5, MOQ: 6, 거래처: "토핑솔루션", 거래처이메일: "kutest6240@gmail.com" }
+    ];
+
+    // 거래처 정보 (Suppliers 시트)
+    const SUPPLIERS = [
+      { 거래처명: "도미노푸드서플라이", 담당자: "박지훈", 이메일: "kutest6240@gmail.com", 품목군: "도우/소스/치즈" },
+      { 거래처명: "프레시미트코리아", 담당자: "김현우", 이메일: "kutest6240@gmail.com", 품목군: "페퍼로니/베이컨" },
+      { 거래처명: "그린베지유통", 담당자: "이수진", 이메일: "kutest6240@gmail.com", 품목군: "양파/피망/버섯" },
+      { 거래처명: "토핑솔루션", 담당자: "정민아", 이메일: "kutest6240@gmail.com", 품목군: "올리브/콘" }
+    ];
+
+    let inventoryData = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+
+    function renderInputTable() {
+      const tbody = document.getElementById('invBody');
+      const esc = v => String(v ?? '').replace(/"/g, '&quot;');
+      tbody.innerHTML = inventoryData.map((item, idx) => `
+        <tr>
+          <td><input type="text" data-idx="${idx}" data-field="품목코드" value="${esc(item.품목코드)}" placeholder="ING001"></td>
+          <td><input type="text" data-idx="${idx}" data-field="재료명" value="${esc(item.재료명)}" placeholder="도우볼"></td>
+          <td><input type="text" data-idx="${idx}" data-field="규격" value="${esc(item.규격)}" placeholder="220g"></td>
+          <td><input type="text" data-idx="${idx}" data-field="단위" value="${esc(item.단위)}" placeholder="개"></td>
+          <td class="col-num"><input type="number" min="0" data-idx="${idx}" data-field="현재재고" value="${item.현재재고}"></td>
+          <td class="col-num"><input type="number" min="0" data-idx="${idx}" data-field="안전재고" value="${item.안전재고}"></td>
+          <td class="col-num"><input type="number" min="0" data-idx="${idx}" data-field="MOQ" value="${item.MOQ}"></td>
+          <td><input type="text" data-idx="${idx}" data-field="거래처" value="${esc(item.거래처)}" placeholder="도미노푸드서플라이"></td>
+          <td><input type="text" data-idx="${idx}" data-field="거래처이메일" value="${esc(item.거래처이메일)}" placeholder="email@example.com"></td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+          const idx = parseInt(e.target.dataset.idx);
+          const field = e.target.dataset.field;
+          const numFields = ['현재재고', '안전재고', 'MOQ'];
+          const val = numFields.includes(field) ? (parseInt(e.target.value) || 0) : (e.target.value || '').trim();
+          inventoryData[idx][field] = val;
+        });
+      });
+    }
+
+    function analyzeInventory() {
+      return inventoryData.map(item => {
+        const current = Number(item.현재재고) || 0;
+        const safe = Number(item.안전재고) || 0;
+        const moq = Number(item.MOQ) || 0;
+        const shortage = Math.max(safe - current, 0);
+        const needOrder = current < safe;
+        const orderQty = needOrder ? Math.max(moq, shortage) : 0;
+        const status = needOrder ? '발주 필요' : '정상';
+        return { ...item, 부족수량: shortage, 발주권장수량: orderQty, 상태: status };
+      });
+    }
+
+    function getOrdersBySupplier(analyzed) {
+      const bySup = {};
+      analyzed.filter(i => i.상태 === '발주 필요').forEach(item => {
+        const sup = item.거래처 || '';
+        if (!sup) return;
+        if (!bySup[sup]) bySup[sup] = { 거래처: sup, 품목수: 0, 총발주수량: 0, 품목목록: [], 거래처이메일: item.거래처이메일 || '' };
+        bySup[sup].품목수++;
+        bySup[sup].총발주수량 += item.발주권장수량 || 0;
+        bySup[sup].품목목록.push({
+          재료명: item.재료명, 규격: item.규격, 단위: item.단위,
+          현재재고: item.현재재고, 안전재고: item.안전재고, 발주권장수량: item.발주권장수량
+        });
+      });
+      return Object.values(bySup);
+    }
+
+    function syncFromInputs() {
+      const numFields = ['현재재고', '안전재고', 'MOQ'];
+      document.querySelectorAll('#invBody input').forEach(inp => {
+        const idx = parseInt(inp.dataset.idx);
+        const field = inp.dataset.field;
+        inventoryData[idx][field] = numFields.includes(field)
+          ? (parseInt(inp.value) || 0)
+          : (inp.value || '').trim();
+      });
+    }
+
+    document.getElementById('btnAnalyze').addEventListener('click', () => {
+      syncFromInputs();
+      const analyzed = analyzeInventory();
+      const orders = getOrdersBySupplier(analyzed);
+      const summary = {
+        총품목수: analyzed.length,
+        발주필요품목수: analyzed.filter(i => i.상태 === '발주 필요').length,
+        전체권장발주수량: analyzed.reduce((s, i) => s + (i.발주권장수량 || 0), 0),
+        오늘상태: analyzed.some(i => i.상태 === '발주 필요') ? '담당자 확인 필요' : '정상'
+      };
+
+      document.getElementById('summarySection').style.display = 'block';
+      document.getElementById('summaryGrid').innerHTML = `
+        <div class="summary-item"><div class="value">${summary.총품목수}</div><div class="label">총 품목 수</div></div>
+        <div class="summary-item ${summary.발주필요품목수 > 0 ? 'status-warning' : 'status-ok'}"><div class="value">${summary.발주필요품목수}</div><div class="label">발주 필요 품목</div></div>
+        <div class="summary-item"><div class="value">${summary.전체권장발주수량}</div><div class="label">전체 권장 발주 수량</div></div>
+        <div class="summary-item ${summary.오늘상태 === '담당자 확인 필요' ? 'status-warning' : 'status-ok'}"><div class="value">${summary.오늘상태}</div><div class="label">오늘 상태</div></div>
+      `;
+
+      document.getElementById('resultSection').style.display = 'block';
+      document.getElementById('resultBody').innerHTML = analyzed.map(i => `
+        <tr>
+          <td>${i.품목코드}</td>
+          <td>${i.재료명}</td>
+          <td>${i.현재재고}</td>
+          <td>${i.안전재고}</td>
+          <td>${i.부족수량}</td>
+          <td>${i.발주권장수량}</td>
+          <td><span class="badge ${i.상태 === '발주 필요' ? 'badge-danger' : 'badge-success'}">${i.상태}</span></td>
+          <td>${i.거래처}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('ordersSection').style.display = orders.length ? 'block' : 'none';
+      document.getElementById('ordersList').innerHTML = orders.map((o, idx) => {
+        window._orderData = window._orderData || {};
+        window._orderData['ord' + idx] = { supplier: o.거래처 || '', email: o.거래처이메일 || '', items: o.품목목록 || [] };
+        return `
+          <div class="order-card" data-order-id="ord${idx}">
+            <h4>${o.거래처}</h4>
+            <div class="meta">품목 ${o.품목수}개, 총 발주 수량 ${o.총발주수량}</div>
+            <ul class="items">${(o.품목목록 || []).map(i => `<li>${i.재료명}: ${i.발주권장수량}${i.단위}</li>`).join('')}</ul>
+            <div class="actions">
+              <button class="btn btn-primary btn-open-email">✉️ 이메일 보내기</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.btn-open-email').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const oid = btn.closest('.order-card').dataset.orderId;
+          const data = (window._orderData || {})[oid];
+          if (data) openEmailModal(data);
+        });
+      });
+    });
+
+    function getEmailContent(supplierName, storeName, items) {
+      const d = new Date().toISOString().slice(0, 10);
+      const subject = `[발주요청] ${storeName} / ${supplierName} / ${d}`;
+      const lines = items.map(i => `- ${i.재료명} (${i.규격}): ${i.발주권장수량}${i.단위} (현재 ${i.현재재고}${i.단위}, 안전재고 ${i.안전재고}${i.단위})`).join('\n');
+      const body = `안녕하세요 ${supplierName} 담당자님.
+
+도미노피자 ${storeName}입니다.
+아래 품목에 대해 발주 요청드립니다.
+
+${lines}
+
+첨부한 발주서 확인 부탁드립니다.
+감사합니다.
+점포 운영매니저`;
+      return { subject, body };
+    }
+
+    function openEmailModal(data) {
+      document.getElementById('storeName').value = '점포';
+      document.getElementById('emailTo').value = data.email || '';
+      document.getElementById('emailModal').dataset.supplier = data.supplier || '';
+      document.getElementById('emailModal').dataset.itemsJson = JSON.stringify(data.items || []);
+      document.getElementById('emailjsPublicKey').value = EMAILJS.publicKey || '';
+      document.getElementById('emailjsServiceId').value = EMAILJS.serviceId || '';
+      document.getElementById('emailjsTemplateId').value = EMAILJS.templateId || '';
+      updateEmailPreview();
+      document.getElementById('emailModal').classList.add('active');
+    }
+
+    function updateEmailPreview() {
+      const store = document.getElementById('storeName').value || '점포';
+      const supplier = document.getElementById('emailModal').dataset.supplier || '';
+      const items = JSON.parse(document.getElementById('emailModal').dataset.itemsJson || '[]');
+      if (items.length === 0) return;
+      const { subject, body } = getEmailContent(supplier, store, items);
+      document.getElementById('emailSubject').value = subject;
+      document.getElementById('emailBody').textContent = body;
+    }
+
+    async function doSendEmail() {
+      const to = document.getElementById('emailTo').value.trim();
+      const store = document.getElementById('storeName').value || '점포';
+      const supplier = document.getElementById('emailModal').dataset.supplier || '';
+      const items = JSON.parse(document.getElementById('emailModal').dataset.itemsJson || '[]');
+
+      if (!to) {
+        alert('수신 이메일을 입력해주세요.');
+        return;
+      }
+      if (items.length === 0) {
+        alert('발주 품목이 없습니다.');
+        return;
+      }
+
+      const { subject, body } = getEmailContent(supplier, store, items);
+
+      const btn = document.getElementById('btnSendEmail');
+      btn.disabled = true;
+      btn.textContent = '발송 중...';
+
+      const apiUrl = (window.location.protocol === 'file:' || window.location.port !== '5000')
+        ? 'http://localhost:5000/api/send-email'
+        : '/api/send-email';
+
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to_email: to,
+            supplier_name: supplier,
+            store_name: store,
+            items
+          })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          alert(data.message || '이메일이 발송되었습니다.');
+          document.getElementById('emailModal').classList.remove('active');
+          btn.disabled = false;
+          btn.textContent = '✉️ 이메일 보내기';
+          return;
+        }
+        throw new Error(data.error || '발송 실패');
+      } catch (err) {
+        const pk = document.getElementById('emailjsPublicKey')?.value?.trim() || EMAILJS.publicKey;
+        const sid = document.getElementById('emailjsServiceId')?.value?.trim() || EMAILJS.serviceId;
+        const tid = document.getElementById('emailjsTemplateId')?.value?.trim() || EMAILJS.templateId;
+
+        if (pk && sid && tid && typeof emailjs !== 'undefined') {
+          try {
+            emailjs.init(pk);
+            await emailjs.send(sid, tid, { to_email: to, subject: subject, message: body });
+            alert('이메일이 발송되었습니다.');
+            document.getElementById('emailModal').classList.remove('active');
+          } catch (e2) {
+            fallbackMailto(to, subject, body);
+          }
+        } else {
+          fallbackMailto(to, subject, body);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✉️ 이메일 보내기';
+      }
+    }
+
+    function fallbackMailto(to, subject, body) {
+      window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      document.getElementById('emailModal').classList.remove('active');
+      alert('Gmail 앱 비밀번호(.env)를 사용하려면 python app.py 실행 후 http://localhost:5000 으로 접속하세요.\n\n메일 앱이 열렸습니다.');
+    }
+
+    document.getElementById('btnCloseModal').addEventListener('click', () => {
+      document.getElementById('emailModal').classList.remove('active');
+    });
+
+    document.getElementById('btnSendEmail').addEventListener('click', doSendEmail);
+    document.getElementById('storeName').addEventListener('input', updateEmailPreview);
+    document.getElementById('emailTo').addEventListener('input', updateEmailPreview);
+
+    document.getElementById('btnSaveEmailJS').addEventListener('click', () => {
+      EMAILJS = {
+        publicKey: document.getElementById('emailjsPublicKey').value.trim(),
+        serviceId: document.getElementById('emailjsServiceId').value.trim(),
+        templateId: document.getElementById('emailjsTemplateId').value.trim()
+      };
+      saveEmailJSConfig();
+      alert('EmailJS 설정이 저장되었습니다. 이제 HTML에서 바로 이메일을 보낼 수 있습니다.');
+    });
+
+    document.getElementById('emailModal').addEventListener('click', (e) => {
+      if (e.target.id === 'emailModal' || e.target.classList.contains('modal')) {
+        document.getElementById('emailModal').classList.remove('active');
+      }
+    });
+
+    document.getElementById('emailModal').querySelector('.modal-content').addEventListener('click', e => e.stopPropagation());
+
+    renderInputTable();
+  </script>
+</body>
+</html>
