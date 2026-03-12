@@ -19,11 +19,20 @@
   <div class="container">
     <div class="card">
       <div class="card-title">재고 입력</div>
-      <p class="help-text">아래 표에서 수정 후 <strong>분석하기</strong>를 누르세요.</p>
+      <p class="help-text">엑셀 파일을 업로드하거나 아래 표에서 직접 수정 후 <strong>분석하기</strong>를 누르세요.</p>
+      <div class="upload-row">
+        <label class="upload-zone" for="excelInput">
+          <input type="file" id="excelInput" accept=".xlsx,.xls" hidden>
+          <span class="upload-icon">📊</span>
+          <span class="upload-text">엑셀 파일 불러오기</span>
+          <span class="upload-hint">.xlsx, .xls</span>
+        </label>
+      </div>
       <div class="table-wrap">
         <table class="inv-table" id="invTable">
           <thead>
             <tr>
+              <th class="col-actions"></th>
               <th class="col-code">품목코드</th>
               <th class="col-name">재료명</th>
               <th class="col-spec">규격</th>
@@ -101,6 +110,7 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

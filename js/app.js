@@ -1,28 +1,31 @@
-const DEFAULT_INVENTORY = [
-  { 품목코드: "ING001", 재료명: "도우볼", 규격: "220g", 단위: "개", 현재재고: 120, 안전재고: 180, MOQ: 100, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING002", 재료명: "토마토소스", 규격: "3kg", 단위: "팩", 현재재고: 32, 안전재고: 20, MOQ: 10, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING003", 재료명: "모짜렐라치즈", 규격: "2kg", 단위: "봉", 현재재고: 12, 안전재고: 18, MOQ: 10, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING004", 재료명: "페퍼로니", 규격: "1kg", 단위: "봉", 현재재고: 15, 안전재고: 12, MOQ: 8, 거래처: "프레시미트코리아", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING005", 재료명: "베이컨", 규격: "1kg", 단위: "팩", 현재재고: 6, 안전재고: 10, MOQ: 10, 거래처: "프레시미트코리아", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING006", 재료명: "양파", 규격: "2.5kg", 단위: "봉", 현재재고: 14, 안전재고: 12, MOQ: 6, 거래처: "그린베지유통", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING007", 재료명: "피망", 규격: "2.5kg", 단위: "봉", 현재재고: 5, 안전재고: 8, MOQ: 5, 거래처: "그린베지유통", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING008", 재료명: "양송이버섯", 규격: "2.5kg", 단위: "캔", 현재재고: 3, 안전재고: 6, MOQ: 6, 거래처: "그린베지유통", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING009", 재료명: "블랙올리브", 규격: "3kg", 단위: "캔", 현재재고: 9, 안전재고: 8, MOQ: 4, 거래처: "토핑솔루션", 거래처이메일: "kutest6240@gmail.com" },
-  { 품목코드: "ING010", 재료명: "스위트콘", 규격: "3kg", 단위: "캔", 현재재고: 4, 안전재고: 5, MOQ: 6, 거래처: "토핑솔루션", 거래처이메일: "kutest6240@gmail.com" }
-];
+const EMPTY_ROW = () => ({ 품목코드: "", 재료명: "", 규격: "", 단위: "", 현재재고: 0, 안전재고: 0, MOQ: 0, 거래처: "", 거래처이메일: "" });
 
-let inventoryData = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+let inventoryData = [];
 let orderSendStatus = {};
 
 const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:'))
   ? 'https://ordersystem-orcin.vercel.app'
   : '';
 
+function addRow(atIndex) {
+  inventoryData.splice(atIndex + 1, 0, EMPTY_ROW());
+  renderInputTable();
+}
+
+function removeRow(atIndex) {
+  inventoryData.splice(atIndex, 1);
+  renderInputTable();
+}
+
 function renderInputTable() {
   const tbody = document.getElementById('invBody');
   const esc = v => String(v ?? '').replace(/"/g, '&quot;');
-  tbody.innerHTML = inventoryData.map((item, idx) => `
-    <tr>
+  const rowsHtml = inventoryData.map((item, idx) => `
+    <tr data-idx="${idx}">
+      <td class="col-actions">
+        <button type="button" class="btn-row btn-remove" title="행 삭제">−</button>
+        <button type="button" class="btn-row btn-add" title="행 추가">+</button>
+      </td>
       <td><input type="text" data-idx="${idx}" data-field="품목코드" value="${esc(item.품목코드)}"></td>
       <td><input type="text" data-idx="${idx}" data-field="재료명" value="${esc(item.재료명)}"></td>
       <td><input type="text" data-idx="${idx}" data-field="규격" value="${esc(item.규격)}"></td>
@@ -34,6 +37,14 @@ function renderInputTable() {
       <td><input type="text" data-idx="${idx}" data-field="거래처이메일" value="${esc(item.거래처이메일)}"></td>
     </tr>
   `).join('');
+  const addRowHtml = inventoryData.length === 0 ? `
+    <tr class="add-row-tr">
+      <td colspan="10" class="add-row-cell">
+        <button type="button" class="btn-add-first" title="행 추가">+ 행 추가</button>
+      </td>
+    </tr>
+  ` : '';
+  tbody.innerHTML = rowsHtml + addRowHtml;
 
   tbody.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('change', (e) => {
@@ -41,8 +52,25 @@ function renderInputTable() {
       const field = e.target.dataset.field;
       const numFields = ['현재재고', '안전재고', 'MOQ'];
       const val = numFields.includes(field) ? (parseInt(e.target.value) || 0) : (e.target.value || '').trim();
-      inventoryData[idx][field] = val;
+      if (inventoryData[idx]) inventoryData[idx][field] = val;
     });
+  });
+
+  tbody.querySelectorAll('.btn-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.closest('tr').dataset.idx);
+      removeRow(idx);
+    });
+  });
+  tbody.querySelectorAll('.btn-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.closest('tr').dataset.idx);
+      addRow(idx);
+    });
+  });
+  tbody.querySelector('.btn-add-first')?.addEventListener('click', () => {
+    inventoryData.push(EMPTY_ROW());
+    renderInputTable();
   });
 }
 
@@ -184,6 +212,10 @@ async function doSendEmail() {
 
 document.getElementById('btnAnalyze').addEventListener('click', () => {
   syncFromInputs();
+  if (inventoryData.length === 0) {
+    alert('재고 데이터를 입력하거나 엑셀 파일을 불러오세요.');
+    return;
+  }
   orderSendStatus = {};
   const analyzed = analyzeInventory();
   const orders = getOrdersBySupplier(analyzed);
@@ -258,5 +290,75 @@ document.getElementById('emailModal').addEventListener('click', (e) => {
 });
 
 document.getElementById('emailModal').querySelector('.modal-content').addEventListener('click', e => e.stopPropagation());
+
+document.getElementById('excelInput').addEventListener('change', function(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'binary' });
+      const sheetName = wb.SheetNames.includes('Inventory') ? 'Inventory' : wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      if (rows.length < 2) {
+        alert('엑셀에 데이터가 없거나 헤더만 있습니다.');
+        return;
+      }
+      const headerRow = rows[0].map(h => String(h || '').trim());
+      const colMap = {};
+      const keys = ['품목코드', '재료명', '규격', '단위', '현재재고', '안전재고', 'MOQ', '거래처', '거래처이메일', '이메일'];
+      keys.forEach(k => {
+        const idx = headerRow.findIndex(h => h === k || h.replace(/\s/g, '') === k);
+        if (idx >= 0) colMap[k] = idx;
+      });
+      if (colMap['품목코드'] == null && colMap['재료명'] == null) {
+        colMap['품목코드'] = 0;
+        colMap['재료명'] = 1;
+        colMap['규격'] = 2;
+        colMap['단위'] = 3;
+        colMap['현재재고'] = 4;
+        colMap['안전재고'] = 5;
+        colMap['MOQ'] = 6;
+        colMap['거래처'] = 7;
+        colMap['거래처이메일'] = 9;
+      }
+      const emailCol = colMap['거래처이메일'] ?? colMap['이메일'];
+      const getVal = (row, key) => {
+        const i = colMap[key];
+        if (i == null) return '';
+        const v = row[i];
+        if (v == null || v === '') return '';
+        if (typeof v === 'object' && v.w) return String(v.w);
+        return String(v);
+      };
+      const getNum = (row, key) => {
+        const v = getVal(row, key);
+        const n = parseInt(v, 10);
+        return isNaN(n) ? 0 : n;
+      };
+      inventoryData = rows.slice(1).filter(r => r && Array.isArray(r) && r.some(c => c !== '' && c != null)).map(row => ({
+        품목코드: getVal(row, '품목코드').trim(),
+        재료명: getVal(row, '재료명').trim(),
+        규격: getVal(row, '규격').trim(),
+        단위: getVal(row, '단위').trim(),
+        현재재고: getNum(row, '현재재고'),
+        안전재고: getNum(row, '안전재고'),
+        MOQ: getNum(row, 'MOQ'),
+        거래처: getVal(row, '거래처').trim(),
+        거래처이메일: getVal(row, '거래처이메일').trim() || getVal(row, '이메일').trim()
+      })).filter(item => item.품목코드 || item.재료명);
+      if (inventoryData.length === 0) {
+        alert('읽을 수 있는 재고 데이터가 없습니다. Inventory 시트에 품목코드, 재료명 등이 있는지 확인하세요.');
+        return;
+      }
+      renderInputTable();
+    } catch (err) {
+      alert('엑셀 파싱 오류: ' + err.message);
+    }
+    e.target.value = '';
+  };
+  reader.readAsBinaryString(file);
+});
 
 renderInputTable();
