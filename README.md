@@ -15,7 +15,7 @@
 1. 이 저장소를 Vercel에 연결
 2. **Settings** → **Environment Variables** → 추가:
    - Name: `GMAIL_APP_PASSWORD`
-   - Value: `wzbwvnyszeuvfuwk` (Gmail 앱 비밀번호, 공백 없이)
+   - Value: `Gmail 앱 비밀번호 16자리` (공백 없이 입력)
 3. 재배포 후 이메일 보내기 사용 가능
 
 ## EmailJS 설정
