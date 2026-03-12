@@ -13,8 +13,10 @@
 ## 배포 (Vercel)
 
 1. 이 저장소를 Vercel에 연결
-2. 배포 설정: Framework Preset `Other` 또는 그대로
-3. 배포 완료 후, 발주 메일 모달에서 EmailJS(Public Key, Service ID, Template ID) 설정
+2. **Settings** → **Environment Variables** → 추가:
+   - Name: `GMAIL_APP_PASSWORD`
+   - Value: `wzbwvnyszeuvfuwk` (Gmail 앱 비밀번호, 공백 없이)
+3. 재배포 후 이메일 보내기 사용 가능
 
 ## EmailJS 설정
 
