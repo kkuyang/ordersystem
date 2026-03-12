@@ -3,75 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#191f28">
   <title>도미노피자 재고·발주 자동화</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
   <header class="header">
-    <h1>도미노피자 재고·발주 자동화</h1>
-    <p>재고 입력 → 분석 → 발주 이메일 발송 (발주 메일에서 EmailJS 설정 후 이메일 발송 가능)</p>
+    <h1>도미노피자 재고·발주</h1>
+    <p>재고 입력 → 분석 → 발주 이메일 발송</p>
   </header>
 
   <div class="container">
     <div class="card">
       <div class="card-title">재고 입력</div>
-      <p class="help-text" style="margin-bottom: 1rem;">아래 표의 모든 항목을 입력·수정한 뒤 <strong>분석하기</strong> 버튼을 누르세요. 기본값은 엑셀 파일 기준입니다.</p>
-      <div style="overflow-x: auto;">
+      <p class="help-text">아래 표에서 수정 후 <strong>분석하기</strong>를 누르세요.</p>
+      <div class="table-wrap">
         <table class="inv-table" id="invTable">
           <thead>
             <tr>
-              <th>품목코드</th>
-              <th>재료명</th>
-              <th>규격</th>
-              <th>단위</th>
-              <th>현재재고</th>
-              <th>안전재고</th>
-              <th>MOQ</th>
-              <th>거래처</th>
-              <th>거래처이메일</th>
+              <th class="col-code">품목코드</th>
+              <th class="col-name">재료명</th>
+              <th class="col-spec">규격</th>
+              <th class="col-unit">단위</th>
+              <th class="col-num">현재재고</th>
+              <th class="col-num">안전재고</th>
+              <th class="col-num">MOQ</th>
+              <th class="col-supplier">거래처</th>
+              <th class="col-email">이메일</th>
             </tr>
           </thead>
           <tbody id="invBody"></tbody>
         </table>
       </div>
-      <div style="margin-top: 1rem;">
-        <button class="btn btn-primary" id="btnAnalyze">📊 분석하기</button>
+      <button class="btn btn-primary" id="btnAnalyze">분석하기</button>
+    </div>
+
+    <div id="mainGrid" style="display:none;">
+      <div id="summarySection" class="card summary-card">
+        <div class="card-title">오늘 재고 요약</div>
+        <div class="summary-grid" id="summaryGrid"></div>
       </div>
-    </div>
 
-    <div id="summarySection" class="card" style="display:none;">
-      <div class="card-title">오늘 재고 요약</div>
-      <div class="summary-grid" id="summaryGrid"></div>
-    </div>
-
-    <div id="resultSection" class="card" style="display:none;">
-      <div class="card-title">재고 현황 결과</div>
-      <div style="overflow-x: auto;">
-        <table class="inv-table">
-          <thead>
-            <tr>
-              <th>품목코드</th>
-              <th>재료명</th>
-              <th>현재재고</th>
-              <th>안전재고</th>
-              <th>부족수량</th>
-              <th>발주권장</th>
-              <th>상태</th>
-              <th>거래처</th>
-            </tr>
-          </thead>
-          <tbody id="resultBody"></tbody>
-        </table>
+      <div id="resultSection" class="card">
+        <div class="card-title">재고 현황 결과</div>
+        <div class="table-wrap">
+          <table class="inv-table">
+            <thead>
+              <tr>
+                <th class="col-code">품목코드</th>
+                <th class="col-name">재료명</th>
+                <th class="col-num">현재재고</th>
+                <th class="col-num">안전재고</th>
+                <th class="col-num">부족수량</th>
+                <th class="col-num">발주권장</th>
+                <th>상태</th>
+                <th class="col-supplier">거래처</th>
+              </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
     <div id="ordersSection" class="card" style="display:none;">
       <div class="card-title">거래처별 발주 필요 현황</div>
-      <div id="ordersList"></div>
+      <div id="ordersList" class="orders-grid"></div>
     </div>
   </div>
 
@@ -80,7 +80,7 @@
       <h3>발주 이메일</h3>
       <div class="form-group">
         <label>점포명</label>
-        <input type="text" id="storeName" value="점포" placeholder="점포명 입력">
+        <input type="text" id="storeName" value="점포" placeholder="점포명">
       </div>
       <div class="form-group">
         <label>제목</label>
@@ -94,28 +94,9 @@
         <label>수신 이메일</label>
         <input type="email" id="emailTo" placeholder="거래처 이메일">
       </div>
-      <details style="margin-bottom: 1rem;" open>
-        <summary class="details-summary">📧 EmailJS 설정 (웹에서 바로 발송하려면 필수)</summary>
-        <div class="form-group" style="margin-top:0.5rem;">
-          <label>Public Key</label>
-          <input type="text" id="emailjsPublicKey" placeholder="emailjs.com 가입 후 Account에서 복사" value="">
-        </div>
-        <div class="form-group">
-          <label>Service ID</label>
-          <input type="text" id="emailjsServiceId" placeholder="Email Services 연결 후" value="">
-        </div>
-        <div class="form-group">
-          <label>Template ID</label>
-          <input type="text" id="emailjsTemplateId" placeholder="템플릿 변수: to_email, subject, message" value="">
-        </div>
-        <button class="btn btn-secondary" id="btnSaveEmailJS" style="margin-bottom:0.5rem;">설정 저장</button>
-        <p class="help-text">
-          <a href="https://www.emailjs.com" target="_blank">emailjs.com</a> 무료 가입 → Add Email Service(Gmail) → Create Template → To: <code>{{to_email}}</code>, Subject: <code>{{subject}}</code>, Content: <code>{{message}}</code>
-        </p>
-      </details>
-      <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-        <button class="btn btn-primary" id="btnSendEmail">✉️ 이메일 보내기</button>
-        <button class="btn btn-outline" id="btnCloseModal">닫기</button>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btnSendEmail">이메일 보내기</button>
+        <button class="btn btn-ghost" id="btnCloseModal">닫기</button>
       </div>
     </div>
   </div>

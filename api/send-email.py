@@ -28,8 +28,6 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        self._send_cors_headers()
-
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
@@ -83,6 +81,8 @@ class handler(BaseHTTPRequestHandler):
     def _send_json(self, status, data):
         self.send_response(status)
         self.send_header("Content-type", "application/json")
-        self._send_cors_headers()
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))

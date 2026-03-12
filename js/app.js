@@ -1,10 +1,3 @@
-// EmailJS 설정 (localStorage에 저장, UI에서 입력 가능)
-let EMAILJS = JSON.parse(localStorage.getItem('domino_emailjs') || '{"publicKey":"","serviceId":"","templateId":""}');
-function saveEmailJSConfig() {
-  localStorage.setItem('domino_emailjs', JSON.stringify(EMAILJS));
-}
-
-// domino_inventory_training.xlsx 기준 데이터
 const DEFAULT_INVENTORY = [
   { 품목코드: "ING001", 재료명: "도우볼", 규격: "220g", 단위: "개", 현재재고: 120, 안전재고: 180, MOQ: 100, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
   { 품목코드: "ING002", 재료명: "토마토소스", 규격: "3kg", 단위: "팩", 현재재고: 32, 안전재고: 20, MOQ: 10, 거래처: "도미노푸드서플라이", 거래처이메일: "kutest6240@gmail.com" },
@@ -18,29 +11,27 @@ const DEFAULT_INVENTORY = [
   { 품목코드: "ING010", 재료명: "스위트콘", 규격: "3kg", 단위: "캔", 현재재고: 4, 안전재고: 5, MOQ: 6, 거래처: "토핑솔루션", 거래처이메일: "kutest6240@gmail.com" }
 ];
 
-const SUPPLIERS = [
-  { 거래처명: "도미노푸드서플라이", 담당자: "박지훈", 이메일: "kutest6240@gmail.com", 품목군: "도우/소스/치즈" },
-  { 거래처명: "프레시미트코리아", 담당자: "김현우", 이메일: "kutest6240@gmail.com", 품목군: "페퍼로니/베이컨" },
-  { 거래처명: "그린베지유통", 담당자: "이수진", 이메일: "kutest6240@gmail.com", 품목군: "양파/피망/버섯" },
-  { 거래처명: "토핑솔루션", 담당자: "정민아", 이메일: "kutest6240@gmail.com", 품목군: "올리브/콘" }
-];
-
 let inventoryData = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+let orderSendStatus = {};
+
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:'))
+  ? 'https://ordersystem-orcin.vercel.app'
+  : '';
 
 function renderInputTable() {
   const tbody = document.getElementById('invBody');
   const esc = v => String(v ?? '').replace(/"/g, '&quot;');
   tbody.innerHTML = inventoryData.map((item, idx) => `
     <tr>
-      <td><input type="text" data-idx="${idx}" data-field="품목코드" value="${esc(item.품목코드)}" placeholder="ING001"></td>
-      <td><input type="text" data-idx="${idx}" data-field="재료명" value="${esc(item.재료명)}" placeholder="도우볼"></td>
-      <td><input type="text" data-idx="${idx}" data-field="규격" value="${esc(item.규격)}" placeholder="220g"></td>
-      <td><input type="text" data-idx="${idx}" data-field="단위" value="${esc(item.단위)}" placeholder="개"></td>
+      <td><input type="text" data-idx="${idx}" data-field="품목코드" value="${esc(item.품목코드)}"></td>
+      <td><input type="text" data-idx="${idx}" data-field="재료명" value="${esc(item.재료명)}"></td>
+      <td><input type="text" data-idx="${idx}" data-field="규격" value="${esc(item.규격)}"></td>
+      <td><input type="text" data-idx="${idx}" data-field="단위" value="${esc(item.단위)}"></td>
       <td class="col-num"><input type="number" min="0" data-idx="${idx}" data-field="현재재고" value="${item.현재재고}"></td>
       <td class="col-num"><input type="number" min="0" data-idx="${idx}" data-field="안전재고" value="${item.안전재고}"></td>
       <td class="col-num"><input type="number" min="0" data-idx="${idx}" data-field="MOQ" value="${item.MOQ}"></td>
-      <td><input type="text" data-idx="${idx}" data-field="거래처" value="${esc(item.거래처)}" placeholder="도미노푸드서플라이"></td>
-      <td><input type="text" data-idx="${idx}" data-field="거래처이메일" value="${esc(item.거래처이메일)}" placeholder="email@example.com"></td>
+      <td><input type="text" data-idx="${idx}" data-field="거래처" value="${esc(item.거래처)}"></td>
+      <td><input type="text" data-idx="${idx}" data-field="거래처이메일" value="${esc(item.거래처이메일)}"></td>
     </tr>
   `).join('');
 
@@ -117,9 +108,6 @@ function openEmailModal(data) {
   document.getElementById('emailTo').value = data.email || '';
   document.getElementById('emailModal').dataset.supplier = data.supplier || '';
   document.getElementById('emailModal').dataset.itemsJson = JSON.stringify(data.items || []);
-  document.getElementById('emailjsPublicKey').value = EMAILJS.publicKey || '';
-  document.getElementById('emailjsServiceId').value = EMAILJS.serviceId || '';
-  document.getElementById('emailjsTemplateId').value = EMAILJS.templateId || '';
   updateEmailPreview();
   document.getElementById('emailModal').classList.add('active');
 }
@@ -134,6 +122,20 @@ function updateEmailPreview() {
   document.getElementById('emailBody').textContent = body;
 }
 
+function setOrderSendStatus(supplier, status) {
+  orderSendStatus[supplier] = status;
+  const card = document.querySelector(`.order-card[data-supplier="${CSS.escape(supplier)}"]`);
+  if (card) {
+    let badge = card.querySelector('.send-status');
+    if (!badge) {
+      badge = document.createElement('span');
+      card.querySelector('.order-card-header').appendChild(badge);
+    }
+    badge.textContent = status === 'success' ? '발송성공' : '발송실패';
+    badge.className = 'send-status ' + (status === 'success' ? 'send-success' : 'send-fail');
+  }
+}
+
 async function doSendEmail() {
   const to = document.getElementById('emailTo').value.trim();
   const store = document.getElementById('storeName').value || '점포';
@@ -144,60 +146,45 @@ async function doSendEmail() {
     alert('수신 이메일을 입력해주세요.');
     return;
   }
-  if (items.length === 0) {
-    alert('발주 품목이 없습니다.');
-    return;
-  }
-
-  const { subject, body } = getEmailContent(supplier, store, items);
+  if (items.length === 0) return;
 
   const btn = document.getElementById('btnSendEmail');
   btn.disabled = true;
   btn.textContent = '발송 중...';
 
-  const apiUrl = '/api/send-email';
-
   try {
-    const res = await fetch(apiUrl, {
+    const res = await fetch(`${API_BASE}/api/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to_email: to, supplier_name: supplier, store_name: store, items })
     });
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = { error: res.status === 404 ? 'API를 찾을 수 없습니다. Vercel에 배포되어 있는지 확인하세요.' : '응답 오류' };
+    }
 
-    if (res.ok) {
-      alert(data.message || '이메일이 발송되었습니다.');
+    const success = res.ok || res.status === 200 || data.success === true;
+    if (success) {
+      setOrderSendStatus(supplier, 'success');
       document.getElementById('emailModal').classList.remove('active');
-      btn.disabled = false;
-      btn.textContent = '✉️ 이메일 보내기';
-      return;
-    }
-    throw new Error(data.error || '발송 실패');
-  } catch (err) {
-    const pk = document.getElementById('emailjsPublicKey')?.value?.trim() || EMAILJS.publicKey;
-    const sid = document.getElementById('emailjsServiceId')?.value?.trim() || EMAILJS.serviceId;
-    const tid = document.getElementById('emailjsTemplateId')?.value?.trim() || EMAILJS.templateId;
-
-    if (pk && sid && tid && typeof emailjs !== 'undefined') {
-      try {
-        emailjs.init(pk);
-        await emailjs.send(sid, tid, { to_email: to, subject: subject, message: body });
-        alert('이메일이 발송되었습니다.');
-        document.getElementById('emailModal').classList.remove('active');
-      } catch (e2) {
-        alert('발송 실패: ' + (e2.text || e2.message || String(e2)) + '\n\nPython 서버: python app.py 실행 후 http://localhost:5000 접속\n또는 EmailJS 설정을 확인하세요.');
-      }
     } else {
-      alert('이메일 발송을 위해 다음 중 하나를 선택하세요:\n\n① Python: 터미널에서 python app.py 실행 후 http://localhost:5000 접속 (Gmail 앱 비밀번호 사용)\n② EmailJS: 아래 설정에서 Public Key, Service ID, Template ID 입력');
+      setOrderSendStatus(supplier, 'fail');
+      alert('발송 실패: ' + (data.error || '오류가 발생했습니다.'));
     }
+  } catch (err) {
+    setOrderSendStatus(supplier, 'fail');
+    alert('발송 실패: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✉️ 이메일 보내기';
+    btn.textContent = '이메일 보내기';
   }
 }
 
 document.getElementById('btnAnalyze').addEventListener('click', () => {
   syncFromInputs();
+  orderSendStatus = {};
   const analyzed = analyzeInventory();
   const orders = getOrdersBySupplier(analyzed);
   const summary = {
@@ -207,15 +194,14 @@ document.getElementById('btnAnalyze').addEventListener('click', () => {
     오늘상태: analyzed.some(i => i.상태 === '발주 필요') ? '담당자 확인 필요' : '정상'
   };
 
-  document.getElementById('summarySection').style.display = 'block';
+  document.getElementById('mainGrid').style.display = 'block';
   document.getElementById('summaryGrid').innerHTML = `
     <div class="summary-item"><div class="value">${summary.총품목수}</div><div class="label">총 품목 수</div></div>
-    <div class="summary-item ${summary.발주필요품목수 > 0 ? 'status-warning' : 'status-ok'}"><div class="value">${summary.발주필요품목수}</div><div class="label">발주 필요 품목</div></div>
-    <div class="summary-item"><div class="value">${summary.전체권장발주수량}</div><div class="label">전체 권장 발주 수량</div></div>
-    <div class="summary-item ${summary.오늘상태 === '담당자 확인 필요' ? 'status-warning' : 'status-ok'}"><div class="value">${summary.오늘상태}</div><div class="label">오늘 상태</div></div>
+    <div class="summary-item ${summary.발주필요품목수 > 0 ? 'status-warning' : 'status-ok'}"><div class="value">${summary.발주필요품목수}</div><div class="label">발주 필요</div></div>
+    <div class="summary-item"><div class="value">${summary.전체권장발주수량}</div><div class="label">권장 발주</div></div>
+    <div class="summary-item ${summary.오늘상태 === '담당자 확인 필요' ? 'status-warning' : 'status-ok'}"><div class="value">${summary.오늘상태}</div><div class="label">상태</div></div>
   `;
 
-  document.getElementById('resultSection').style.display = 'block';
   document.getElementById('resultBody').innerHTML = analyzed.map(i => `
     <tr>
       <td>${i.품목코드}</td>
@@ -233,19 +219,22 @@ document.getElementById('btnAnalyze').addEventListener('click', () => {
   document.getElementById('ordersList').innerHTML = orders.map((o, idx) => {
     window._orderData = window._orderData || {};
     window._orderData['ord' + idx] = { supplier: o.거래처 || '', email: o.거래처이메일 || '', items: o.품목목록 || [] };
+    const status = orderSendStatus[o.거래처];
+    const statusHtml = status ? `<span class="send-status ${status === 'success' ? 'send-success' : 'send-fail'}">${status === 'success' ? '발송성공' : '발송실패'}</span>` : '';
     return `
-      <div class="order-card" data-order-id="ord${idx}">
-        <h4>${o.거래처}</h4>
-        <div class="meta">품목 ${o.품목수}개, 총 발주 수량 ${o.총발주수량}</div>
-        <ul class="items">${(o.품목목록 || []).map(i => `<li>${i.재료명}: ${i.발주권장수량}${i.단위}</li>`).join('')}</ul>
-        <div class="actions">
-          <button class="btn btn-primary btn-open-email">✉️ 이메일 보내기</button>
+      <div class="order-card" data-supplier="${o.거래처}" data-order-id="ord${idx}">
+        <div class="order-card-header">
+          <h4>${o.거래처}</h4>
+          ${statusHtml}
         </div>
+        <div class="order-meta">품목 ${o.품목수}개 · 총 ${o.총발주수량}개</div>
+        <ul class="order-items">${(o.품목목록 || []).map(i => `<li>${i.재료명} ${i.발주권장수량}${i.단위}</li>`).join('')}</ul>
+        <button class="btn btn-primary btn-send-order">이메일 보내기</button>
       </div>
     `;
   }).join('');
 
-  document.querySelectorAll('.btn-open-email').forEach(btn => {
+  document.querySelectorAll('.btn-send-order').forEach(btn => {
     btn.addEventListener('click', () => {
       const oid = btn.closest('.order-card').dataset.orderId;
       const data = (window._orderData || {})[oid];
@@ -262,18 +251,8 @@ document.getElementById('btnSendEmail').addEventListener('click', doSendEmail);
 document.getElementById('storeName').addEventListener('input', updateEmailPreview);
 document.getElementById('emailTo').addEventListener('input', updateEmailPreview);
 
-document.getElementById('btnSaveEmailJS').addEventListener('click', () => {
-  EMAILJS = {
-    publicKey: document.getElementById('emailjsPublicKey').value.trim(),
-    serviceId: document.getElementById('emailjsServiceId').value.trim(),
-    templateId: document.getElementById('emailjsTemplateId').value.trim()
-  };
-  saveEmailJSConfig();
-  alert('EmailJS 설정이 저장되었습니다. 이제 HTML에서 바로 이메일을 보낼 수 있습니다.');
-});
-
 document.getElementById('emailModal').addEventListener('click', (e) => {
-  if (e.target.id === 'emailModal' || e.target.classList.contains('modal')) {
+  if (e.target.id === 'emailModal') {
     document.getElementById('emailModal').classList.remove('active');
   }
 });

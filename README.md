@@ -8,7 +8,7 @@
 - 현재재고 < 안전재고 시 발주 필요 판정
 - 발주 권장 수량: MAX(MOQ, 안전재고 - 현재재고)
 - 거래처별 발주 현황 확인
-- 이메일 발송 (EmailJS 설정 필요)
+- 이메일 발송 (Vercel 서버리스 + Gmail SMTP)
 
 ## 배포 (Vercel)
 
@@ -17,11 +17,4 @@
    - Name: `GMAIL_APP_PASSWORD`
    - Value: `Gmail 앱 비밀번호 16자리` (공백 없이 입력)
 3. 재배포 후 이메일 보내기 사용 가능
-
-## EmailJS 설정
-
-이메일 발송을 위해 [emailjs.com](https://www.emailjs.com) 무료 가입 후:
-
-1. Add Email Service → Gmail 연결
-2. Create Template → 변수 설정: `{{to_email}}`, `{{subject}}`, `{{message}}`
-3. 발주 메일 화면에서 설정 저장
+4. 로컬에서 테스트 시: 배포된 Vercel URL의 API를 사용합니다
